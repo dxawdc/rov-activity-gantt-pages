@@ -448,7 +448,8 @@ input:focus, select:focus, .input-shell:focus-within, .hotspot-search-shell:focu
 }
 .activity-label::before { content: ""; align-self: stretch; background: var(--row-accent, #52616a); opacity: 0.75; }
 .activity-label .name { min-width: 0; }
-.activity-label strong { display: block; overflow: hidden; color: #d7d8d2; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+.gantt-title-button { display: block; width: 100%; padding: 0; overflow: hidden; border: 0; color: #d7d8d2; background: transparent; cursor: pointer; font-size: 12px; font-weight: 700; text-align: left; white-space: nowrap; text-overflow: ellipsis; }
+.gantt-title-button:hover, .gantt-title-button:focus-visible { color: #f0cf9a; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; outline: none; }
 .period-index { display: inline-flex; margin-left: 6px; padding: 2px 4px; border: 1px solid rgba(199,162,106,0.38); color: #c5a876; font-size: 7px; font-style: normal; font-weight: 500; vertical-align: 1px; }
 .activity-label small { display: block; margin-top: 3px; color: #637078; font-family: "Bahnschrift", sans-serif; font-size: 9px; letter-spacing: 0.03em; }
 
@@ -701,7 +702,7 @@ input:focus, select:focus, .input-shell:focus-within, .hotspot-search-shell:focu
   .segmented-control button { padding: 0 7px; font-size: 9px; }
   .gantt-viewport { max-height: calc(100vh - 460px); }
   .activity-label { padding-right: 7px; }
-  .activity-label strong { font-size: 10px; }
+  .gantt-title-button { font-size: 10px; }
   .drawer-section { padding: 24px 22px; }
   .drawer-hero { padding: 36px 60px 26px 22px; }
   .hotspot-resource-grid { grid-template-columns: 1fr; }

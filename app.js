@@ -507,7 +507,7 @@
       return `
         <div class="gantt-row" style="--row-accent:${accent};animation-delay:${Math.min(index, 20) * 12}ms">
           <div class="activity-label">
-            <div class="name"><strong title="${escapeHtml(activity.name)}">${escapeHtml(activity.name)}</strong><small>${formatDate(start)} — ${activity.end ? formatDate(end) : "结束待补"}</small></div>
+            <div class="name"><button type="button" class="gantt-title-button" data-title-activity-id="${escapeHtml(activity.id)}" title="${escapeHtml(activity.name)}" aria-label="查看 ${escapeHtml(activity.name)} 详情">${escapeHtml(activity.name)}</button><small>${formatDate(start)} — ${activity.end ? formatDate(end) : "结束待补"}</small></div>
           </div>
           <div class="timeline-cell" style="width:${timelineWidth}px">
             ${frame.backdrop}
@@ -532,7 +532,7 @@
       return `
         <div class="gantt-row hotspot-row" style="--row-accent:#73a9a8;animation-delay:${Math.min(index, 20) * 12}ms">
           <div class="activity-label hotspot-label">
-            <div class="name"><strong title="${escapeHtml(group.name)}">${escapeHtml(group.name)}${group.segmentTotal > 1 ? ` <em class="period-index">档期 ${group.segmentIndex}/${group.segmentTotal}</em>` : ""}</strong><small>${formatDate(frame.start)} — ${formatDate(frame.end)} · ${group.activities.length} 个活动</small></div>
+            <div class="name"><button type="button" class="gantt-title-button" data-title-hotspot-id="${escapeHtml(group.id)}" title="${escapeHtml(group.name)}" aria-label="查看热点 ${escapeHtml(group.name)} 详情">${escapeHtml(group.name)}${group.segmentTotal > 1 ? ` <em class="period-index">档期 ${group.segmentIndex}/${group.segmentTotal}</em>` : ""}</button><small>${formatDate(frame.start)} — ${formatDate(frame.end)} · ${group.activities.length} 个活动</small></div>
           </div>
           <div class="timeline-cell" style="width:${timelineWidth}px">
             ${frame.backdrop}
@@ -1051,10 +1051,12 @@
       render();
     }));
     dom.body.addEventListener("click", (event) => {
-      const bar = event.target.closest(".gantt-bar");
-      if (!bar || state.suppressBarClick) return;
-      if (bar.dataset.hotspotId) openHotspotDrawer(bar.dataset.hotspotId);
-      else if (bar.dataset.activityId) openDrawer(bar.dataset.activityId);
+      const trigger = event.target.closest(".gantt-bar, .gantt-title-button");
+      if (!trigger || state.suppressBarClick) return;
+      const hotspotId = trigger.dataset.hotspotId || trigger.dataset.titleHotspotId;
+      const activityId = trigger.dataset.activityId || trigger.dataset.titleActivityId;
+      if (hotspotId) openHotspotDrawer(hotspotId);
+      else if (activityId) openDrawer(activityId);
     });
     dom.drawerClose.addEventListener("click", closeDrawer);
     dom.backdrop.addEventListener("click", closeDrawer);
