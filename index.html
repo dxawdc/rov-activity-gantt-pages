@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10161c" />
+    <meta name="description" content="一站式查看ROV活动排期与热点：支持双视角甘特图、时间窗与日周月切换、搜索筛选和拖拽浏览；点击即可查看周期、皮肤品质、免费/付费、资源获取预期及活动截图。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:site_name" content="ROV活动排期与热点" />
+    <meta property="og:title" content="ROV活动排期与热点" />
+    <meta property="og:description" content="一站式查看ROV活动排期与热点：支持双视角甘特图、时间窗与日周月切换、搜索筛选和拖拽浏览；点击即可查看周期、皮肤品质、免费/付费、资源获取预期及活动截图。" />
+    <meta property="og:url" content="https://dxawdc.github.io/rov-activity-gantt-pages/" />
+    <title>ROV活动排期与热点</title>
+    <link rel="icon" href="favicon.svg?v=1" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+    <main class="app-shell">
+      <header class="masthead">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true"><span>R</span><span>V</span></div>
+          <div>
+            <p class="eyebrow">REALM OF VALOR · LIVE OPS</p>
+            <h1>ROV活动排期与热点</h1>
+          </div>
+        </div>
+        <div class="masthead-tools">
+          <div class="display-scale-control" role="group" aria-label="页面显示比例">
+            <span>显示比例</span>
+            <button type="button" id="scaleDown" aria-label="缩小页面">−</button>
+            <output id="scaleValue" aria-live="polite">110%</output>
+            <button type="button" id="scaleUp" aria-label="放大页面">＋</button>
+          </div>
+          <div class="masthead-meta">
+            <span class="live-pulse"><i></i> 数据快照</span>
+            <strong id="generatedAt">—</strong>
+            <span id="dataRange">—</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="control-deck" aria-label="排期筛选">
+        <div class="control-group search-control">
+          <label for="searchInput">检索活动 / 热点 / 资源</label>
+          <div class="input-shell">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
+            <input id="searchInput" type="search" placeholder="输入活动名称或资源关键词" autocomplete="off" />
+          </div>
+        </div>
+
+        <div class="control-group date-control time-window-control">
+          <label>时间窗口</label>
+          <div class="window-control-shell">
+            <div class="inline-window-presets" role="group" aria-label="时间窗口快捷选项">
+              <button type="button" data-window="7">7 天</button>
+              <button type="button" data-window="30" class="is-active">30 天</button>
+              <button type="button" data-window="180">180 天</button>
+              <button type="button" data-window="3y">近 3 年</button>
+            </div>
+            <div class="date-inputs">
+              <input id="startDate" type="date" aria-label="开始日期" />
+              <span>→</span>
+              <input id="endDate" type="date" aria-label="结束日期" />
+            </div>
+          </div>
+        </div>
+
+        <div class="control-group compact-control">
+          <label for="typeFilter">活动类型</label>
+          <select id="typeFilter">
+            <option value="all">全部类型</option>
+            <option value="活跃">活跃</option>
+            <option value="付费">付费</option>
+            <option value="unknown">待判断</option>
+          </select>
+        </div>
+
+        <div class="control-group compact-control">
+          <label for="qualityFilter">皮肤品质</label>
+          <select id="qualityFilter">
+            <option value="all">全部品质</option>
+            <option value="skin">含皮肤资源</option>
+            <option value="SSS+">SSS+</option>
+            <option value="SSS">SSS</option>
+            <option value="SS+">SS+</option>
+            <option value="SS">SS</option>
+            <option value="S+">S+</option>
+            <option value="S">S</option>
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="none">无皮肤资源</option>
+          </select>
+        </div>
+
+        <div class="control-group compact-control hotspot-control">
+          <label for="hotspotFilter">关联热点</label>
+          <div class="hotspot-search-shell">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
+            <input id="hotspotFilter" type="search" list="hotspotOptions" placeholder="搜索或选择热点" autocomplete="off" />
+            <button id="hotspotClear" type="button" aria-label="清除热点筛选" hidden>×</button>
+            <datalist id="hotspotOptions"></datalist>
+          </div>
+        </div>
+
+        <div class="control-actions">
+          <button class="ghost-button" id="resetButton" type="button">重置筛选</button>
+          <button class="primary-button" id="todayButton" type="button">定位今天</button>
+        </div>
+      </section>
+
+      <section class="overview-strip" aria-label="排期概览">
+        <article class="metric-card metric-featured">
+          <span id="visibleMetricLabel">窗口内活动</span>
+          <strong id="visibleCount">0</strong>
+          <small id="totalCount">全库 0</small>
+        </article>
+        <article class="metric-card">
+          <span id="skinMetricLabel">皮肤资源活动</span>
+          <strong id="skinCount">0</strong>
+          <small>按资源表关联识别</small>
+        </article>
+        <article class="metric-card">
+          <span id="hotspotMetricLabel">关联热点</span>
+          <strong id="hotspotCount">0</strong>
+          <small>仅统计明确填写项</small>
+        </article>
+        <article class="metric-card">
+          <span id="peakMetricLabel">峰值并行</span>
+          <strong id="peakCount">0</strong>
+          <small id="peakDate">—</small>
+        </article>
+        <div class="visual-legend" aria-label="活动颜色与皮肤品质图例">
+          <div class="legend-row">
+            <span>活动条</span>
+            <i class="legend-swatch active"></i><small>活跃</small>
+            <i class="legend-swatch paid"></i><small>付费·随核心资源</small>
+            <i class="legend-swatch fallback"></i><small>付费·无资源</small>
+          </div>
+          <div class="legend-row">
+            <span>皮肤品质</span>
+            <i class="quality-badge q-b">B</i>
+            <i class="quality-badge q-a">A</i>
+            <i class="quality-badge q-s">S</i>
+            <i class="quality-badge q-splus">S+</i>
+            <i class="quality-badge q-ss">SS</i>
+            <i class="quality-badge q-ssplus">SS+</i>
+            <i class="quality-badge q-sss">SSS</i>
+            <i class="quality-badge q-sssplus">SSS+</i>
+          </div>
+        </div>
+      </section>
+
+      <section class="timeline-panel">
+        <div class="timeline-toolbar">
+          <div class="toolbar-cluster toolbar-cluster-start">
+            <div class="segmented-control perspective-control" role="group" aria-label="排期视角">
+              <span>视角</span>
+              <button type="button" data-perspective="activity" class="is-active">活动</button>
+              <button type="button" data-perspective="hotspot">热点</button>
+            </div>
+            <div class="segmented-control mode-control" role="group" aria-label="活动纳入模式">
+              <span>模式</span>
+              <button type="button" data-mode="launched">周期内上线</button>
+              <button type="button" data-mode="active" class="is-active">周期内有效</button>
+            </div>
+          </div>
+          <div class="timeline-status">
+            <div><span id="windowLabel">—</span><span class="divider"></span><span id="resultSummary">—</span></div>
+            <small>按住鼠标左键拖动时间轴</small>
+          </div>
+          <div class="toolbar-cluster toolbar-cluster-end">
+            <div class="segmented-control granularity-control" role="group" aria-label="时间颗粒度">
+              <span>颗粒度</span>
+              <button type="button" data-grain="day">日</button>
+              <button type="button" data-grain="week" class="is-active">周</button>
+              <button type="button" data-grain="month">月</button>
+            </div>
+            <div class="window-nav" role="group" aria-label="左右滑动时间轴">
+              <button type="button" id="previousWindow" title="向左滑动时间轴" aria-label="向左滑动时间轴">←</button>
+              <button type="button" id="nextWindow" title="向右滑动时间轴" aria-label="向右滑动时间轴">→</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="gantt-viewport" id="ganttViewport">
+          <div class="gantt-stage" id="ganttStage">
+            <div class="gantt-header" id="ganttHeader"></div>
+            <div class="gantt-body" id="ganttBody"></div>
+          </div>
+        </div>
+        <div class="empty-state" id="emptyState" hidden>
+          <div class="empty-glyph">Ø</div>
+          <h2>当前范围没有活动</h2>
+          <p>尝试放宽日期范围或清除筛选条件。</p>
+        </div>
+      </section>
+    </main>
+
+    <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
+    <aside class="detail-drawer" id="detailDrawer" aria-hidden="true" aria-label="活动详情">
+      <button class="drawer-close" id="drawerClose" type="button" aria-label="关闭详情">×</button>
+      <div id="drawerContent"></div>
+    </aside>
+
+    <div class="lightbox" id="lightbox" hidden aria-hidden="true">
+      <button class="lightbox-close" id="lightboxClose" type="button" aria-label="关闭大图">×</button>
+      <button class="lightbox-nav lightbox-prev" id="lightboxPrev" type="button" aria-label="上一张">‹</button>
+      <figure>
+        <img id="lightboxImage" alt="活动截图大图" />
+        <figcaption id="lightboxCaption"></figcaption>
+      </figure>
+      <button class="lightbox-nav lightbox-next" id="lightboxNext" type="button" aria-label="下一张">›</button>
+    </div>
+
+    <script src="data/activities.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
