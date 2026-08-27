@@ -69,29 +69,39 @@
 
         <div class="control-group compact-control">
           <label for="typeFilter">活动类型</label>
-          <select id="typeFilter">
-            <option value="all">全部类型</option>
-            <option value="活跃">活跃</option>
-            <option value="付费">付费</option>
-            <option value="unknown">待判断</option>
-          </select>
+          <div class="facet-select" data-facet="type">
+            <button id="typeFilter" class="facet-trigger" type="button" aria-haspopup="listbox" aria-controls="typeFilterOptions" aria-expanded="false">
+              <span id="typeFilterSummary">全部类型</span><i aria-hidden="true"></i>
+            </button>
+            <div id="typeFilterOptions" class="facet-options" role="listbox" aria-label="活动类型（可多选）" aria-multiselectable="true" hidden>
+              <button type="button" class="facet-option" role="option" aria-selected="false" data-facet="type" data-value="活跃"><i aria-hidden="true"></i><span>活跃</span></button>
+              <button type="button" class="facet-option" role="option" aria-selected="false" data-facet="type" data-value="付费"><i aria-hidden="true"></i><span>付费</span></button>
+              <button type="button" class="facet-option" role="option" aria-selected="false" data-facet="type" data-value="unknown"><i aria-hidden="true"></i><span>待判断</span></button>
+              <button type="button" class="facet-clear" data-clear-facet="type">清空选择</button>
+            </div>
+          </div>
         </div>
 
         <div class="control-group compact-control">
           <label for="qualityFilter">皮肤品质</label>
-          <select id="qualityFilter">
-            <option value="all">全部品质</option>
-            <option value="skin">含皮肤资源</option>
-            <option value="SSS+">SSS+</option>
-            <option value="SSS">SSS</option>
-            <option value="SS+">SS+</option>
-            <option value="SS">SS</option>
-            <option value="S+">S+</option>
-            <option value="S">S</option>
-            <option value="A">A</option>
-            <option value="B">B</option>
-            <option value="none">无皮肤资源</option>
-          </select>
+          <div class="facet-select" data-facet="quality">
+            <button id="qualityFilter" class="facet-trigger" type="button" aria-haspopup="listbox" aria-controls="qualityFilterOptions" aria-expanded="false">
+              <span id="qualityFilterSummary">全部品质</span><i aria-hidden="true"></i>
+            </button>
+            <div id="qualityFilterOptions" class="facet-options quality-options" role="listbox" aria-label="皮肤品质（可多选）" aria-multiselectable="true" hidden>
+              <button type="button" class="facet-option" role="option" aria-selected="false" data-facet="quality" data-value="skin"><i aria-hidden="true"></i><span>含皮肤资源</span></button>
+              <button type="button" class="facet-option" role="option" aria-selected="false" data-facet="quality" data-value="SSS+"><i aria-hidden="true"></i><span>SSS+</span></button>
+              <button type="button" class="facet-option" role="option" aria-selected="false" data-facet="quality" data-value="SSS"><i aria-hidden="true"></i><span>SSS</span></button>
+              <button type="button" class="facet-option" role="option" aria-selected="false" data-facet="quality" data-value="SS+"><i aria-hidden="true"></i><span>SS+</span></button>
+              <button type="button" class="facet-option" role="option" aria-selected="false" data-facet="quality" data-value="SS"><i aria-hidden="true"></i><span>SS</span></button>
+              <button type="button" class="facet-option" role="option" aria-selected="false" data-facet="quality" data-value="S+"><i aria-hidden="true"></i><span>S+</span></button>
+              <button type="button" class="facet-option" role="option" aria-selected="false" data-facet="quality" data-value="S"><i aria-hidden="true"></i><span>S</span></button>
+              <button type="button" class="facet-option" role="option" aria-selected="false" data-facet="quality" data-value="A"><i aria-hidden="true"></i><span>A</span></button>
+              <button type="button" class="facet-option" role="option" aria-selected="false" data-facet="quality" data-value="B"><i aria-hidden="true"></i><span>B</span></button>
+              <button type="button" class="facet-option" role="option" aria-selected="false" data-facet="quality" data-value="none"><i aria-hidden="true"></i><span>无皮肤资源</span></button>
+              <button type="button" class="facet-clear" data-clear-facet="quality">清空选择</button>
+            </div>
+          </div>
         </div>
 
         <div class="control-group compact-control hotspot-control">
@@ -99,8 +109,27 @@
           <div class="hotspot-search-shell">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
             <input id="hotspotFilter" type="search" placeholder="搜索或选择热点" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="hotspotOptions" aria-expanded="false" />
+            <output id="hotspotSelectionCount" class="selection-count" aria-live="polite" hidden></output>
             <button id="hotspotClear" type="button" aria-label="清除热点筛选" hidden>×</button>
-            <div id="hotspotOptions" class="hotspot-options" role="listbox" hidden></div>
+            <div id="hotspotOptions" class="hotspot-options" role="listbox" aria-label="关联热点（可多选）" aria-multiselectable="true" hidden></div>
+          </div>
+        </div>
+
+        <div class="control-group compact-control filter-pack-control">
+          <label for="filterPackTrigger">筛选组合</label>
+          <div class="filter-pack-shell">
+            <button id="filterPackTrigger" class="filter-pack-trigger" type="button" aria-haspopup="dialog" aria-controls="filterPackPanel" aria-expanded="false">
+              <span id="filterPackSummary">快速选择</span><i aria-hidden="true"></i>
+            </button>
+            <div id="filterPackPanel" class="filter-pack-panel" role="dialog" aria-label="本地筛选组合" hidden>
+              <header><div><strong>我的筛选组合</strong><small>仅保存在当前浏览器</small></div><span id="filterPackCount">0 组</span></header>
+              <div id="filterPackList" class="filter-pack-list"></div>
+              <form id="filterPackForm" class="filter-pack-form">
+                <input id="filterPackName" type="text" maxlength="24" placeholder="组合名称，例如：高品质付费热点" autocomplete="off" />
+                <button type="submit">保存当前</button>
+              </form>
+              <p id="filterPackMessage" class="filter-pack-message" aria-live="polite"></p>
+            </div>
           </div>
         </div>
 

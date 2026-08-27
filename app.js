@@ -19,6 +19,13 @@
   const DISPLAY_SCALES = [0.9, 1, 1.1, 1.25];
   const DEFAULT_DISPLAY_SCALE = 1.1;
   const DISPLAY_SCALE_STORAGE_KEY = "rov-activity-gantt-display-scale";
+  const FILTER_PACK_STORAGE_KEY = "rov-activity-gantt-filter-packs-v1";
+  const TYPE_OPTIONS = ["活跃", "付费", "unknown"];
+  const QUALITY_OPTIONS = ["skin", "SSS+", "SSS", "SS+", "SS", "S+", "S", "A", "B", "none"];
+  const FACET_LABELS = {
+    type: { 活跃: "活跃", 付费: "付费", unknown: "待判断" },
+    quality: { skin: "含皮肤资源", "SSS+": "SSS+", SSS: "SSS", "SS+": "SS+", SS: "SS", "S+": "S+", S: "S", A: "A", B: "B", none: "无皮肤资源" },
+  };
   const state = {
     start: null,
     end: null,
@@ -29,9 +36,9 @@
     perspective: "activity",
     mode: "active",
     query: "",
-    type: "all",
-    quality: "all",
-    hotspot: "all",
+    types: [],
+    qualities: [],
+    hotspots: [],
     displayScale: DEFAULT_DISPLAY_SCALE,
     selected: null,
     drawerImages: [],
@@ -46,7 +53,12 @@
   const dom = {
     generatedAt: el("generatedAt"), dataRange: el("dataRange"), search: el("searchInput"),
     start: el("startDate"), end: el("endDate"), type: el("typeFilter"), quality: el("qualityFilter"), hotspot: el("hotspotFilter"),
-    hotspotOptions: el("hotspotOptions"), hotspotClear: el("hotspotClear"),
+    typeOptions: el("typeFilterOptions"), qualityOptions: el("qualityFilterOptions"),
+    typeSummary: el("typeFilterSummary"), qualitySummary: el("qualityFilterSummary"),
+    hotspotOptions: el("hotspotOptions"), hotspotClear: el("hotspotClear"), hotspotSelectionCount: el("hotspotSelectionCount"),
+    filterPackTrigger: el("filterPackTrigger"), filterPackSummary: el("filterPackSummary"), filterPackPanel: el("filterPackPanel"),
+    filterPackList: el("filterPackList"), filterPackCount: el("filterPackCount"), filterPackForm: el("filterPackForm"),
+    filterPackName: el("filterPackName"), filterPackMessage: el("filterPackMessage"),
     reset: el("resetButton"), today: el("todayButton"),
     scaleDown: el("scaleDown"), scaleUp: el("scaleUp"), scaleValue: el("scaleValue"),
     visibleCount: el("visibleCount"), totalCount: el("totalCount"), skinCount: el("skinCount"),
@@ -202,20 +214,15 @@
     return `${group.name}——${group.activities.length}个活动`;
   }
 
-  function selectedHotspotGroup(value) {
-    const normalized = String(value || "").trim();
-    return hotspotCatalog.find((group) => normalized === group.name || normalized === hotspotOptionText(group)) || null;
-  }
-
   let visibleHotspotOptions = [];
   let activeHotspotOptionIndex = -1;
 
   function hotspotChoices(query = "") {
     const normalized = String(query || "").trim().toLocaleLowerCase("zh-CN");
     const choices = hotspotCatalog
-      .map((group) => ({ value: hotspotOptionText(group), group }))
-      .filter((choice) => !normalized || choice.value.toLocaleLowerCase("zh-CN").includes(normalized));
-    if (!normalized || "无关联热点".includes(normalized)) choices.unshift({ value: "无关联热点", group: null });
+      .map((group) => ({ value: group.name, label: hotspotOptionText(group), group }))
+      .filter((choice) => !normalized || choice.label.toLocaleLowerCase("zh-CN").includes(normalized));
+    if (!normalized || "无关联热点".includes(normalized)) choices.unshift({ value: "none", label: "无关联热点", group: null });
     return choices;
   }
 
@@ -224,7 +231,7 @@
     activeHotspotOptionIndex = -1;
     dom.hotspot.removeAttribute("aria-activedescendant");
     dom.hotspotOptions.innerHTML = visibleHotspotOptions
-      .map((choice, index) => `<button type="button" class="hotspot-option" id="hotspot-option-${index}" role="option" aria-selected="false" data-option-index="${index}" data-option-value="${escapeHtml(choice.value)}" title="${escapeHtml(choice.value)}">${escapeHtml(choice.value)}</button>`)
+      .map((choice, index) => `<button type="button" class="hotspot-option" id="hotspot-option-${index}" role="option" aria-selected="${state.hotspots.includes(choice.value)}" data-option-index="${index}" data-option-value="${escapeHtml(choice.value)}" title="${escapeHtml(choice.label)}"><span>${escapeHtml(choice.label)}</span></button>`)
       .join("");
     dom.hotspotOptions.hidden = !open || !visibleHotspotOptions.length;
     dom.hotspot.setAttribute("aria-expanded", String(open && visibleHotspotOptions.length > 0));
@@ -244,7 +251,6 @@
     options.forEach((option, optionIndex) => {
       const selected = optionIndex === activeHotspotOptionIndex;
       option.classList.toggle("is-active", selected);
-      option.setAttribute("aria-selected", String(selected));
     });
     const active = options[activeHotspotOptionIndex];
     if (active) {
@@ -257,15 +263,8 @@
     renderHotspotOptions("", false);
   }
 
-  function normalizedHotspotFilter(value) {
-    const normalized = String(value || "").trim();
-    if (!normalized || normalized === "全部热点") return "all";
-    if (normalized === "无关联热点") return "none";
-    return selectedHotspotGroup(normalized)?.name || normalized;
-  }
-
-  function focusHotspotWindow(group) {
-    const datedActivities = group.activities.filter((activity) => activity.start);
+  function focusHotspotWindow(groups) {
+    const datedActivities = groups.flatMap((group) => group.activities).filter((activity) => activity.start);
     if (!datedActivities.length) return false;
     const earliest = new Date(Math.min(...datedActivities.map((activity) => parseDate(activity.start).getTime())));
     const latest = new Date(Math.max(...datedActivities.map((activity) => activityEnd(activity).getTime())));
@@ -278,11 +277,133 @@
     return true;
   }
 
-  function matchesHotspotFilter(value, filter = state.hotspot) {
-    if (filter === "all") return true;
-    if (filter === "none") return hotspotTerms(value).length === 0;
-    const query = filter.toLocaleLowerCase("zh-CN");
-    return hotspotTerms(value).some((term) => term.toLocaleLowerCase("zh-CN").includes(query));
+  function matchesHotspotFilter(value, filters = state.hotspots) {
+    if (!filters.length) return true;
+    const terms = hotspotTerms(value);
+    return filters.some((filter) => filter === "none"
+      ? terms.length === 0
+      : terms.some((term) => term.toLocaleLowerCase("zh-CN") === filter.toLocaleLowerCase("zh-CN")));
+  }
+
+  function matchesTypeFilter(activity, filters = state.types) {
+    if (!filters.length) return true;
+    return filters.some((filter) => filter === "unknown" ? !activity.type : activity.type === filter);
+  }
+
+  function matchesQualityFilter(activity, filters = state.qualities) {
+    if (!filters.length) return true;
+    return filters.some((filter) => {
+      if (filter === "skin") return Boolean(activity.highestSkinQuality);
+      if (filter === "none") return !activity.highestSkinQuality;
+      return activity.skinQualities.includes(filter);
+    });
+  }
+
+  function facetSummary(facet, values) {
+    if (!values.length) return facet === "type" ? "全部类型" : "全部品质";
+    if (values.length === 1) return FACET_LABELS[facet][values[0]] || values[0];
+    return `${values.length} 项${facet === "type" ? "类型" : "品质"}`;
+  }
+
+  function updateFacetControls() {
+    [["type", state.types, dom.type, dom.typeOptions, dom.typeSummary], ["quality", state.qualities, dom.quality, dom.qualityOptions, dom.qualitySummary]]
+      .forEach(([facet, values, trigger, panel, summary]) => {
+        summary.textContent = facetSummary(facet, values);
+        trigger.classList.toggle("has-selection", values.length > 0);
+        panel.querySelectorAll(".facet-option").forEach((option) => option.setAttribute("aria-selected", String(values.includes(option.dataset.value))));
+      });
+  }
+
+  function updateHotspotControl() {
+    const count = state.hotspots.length;
+    dom.hotspotSelectionCount.hidden = !count;
+    dom.hotspotSelectionCount.value = count ? String(count) : "";
+    dom.hotspotSelectionCount.textContent = count ? String(count) : "";
+    dom.hotspot.placeholder = count ? `已选 ${count} 个热点，继续搜索` : "搜索或选择热点";
+    dom.hotspotClear.hidden = !count && !dom.hotspot.value;
+  }
+
+  function selectedHotspotGroups() {
+    return hotspotCatalog.filter((group) => state.hotspots.includes(group.name));
+  }
+
+  function toggleFacetValue(facet, value) {
+    const values = facet === "type" ? state.types : state.qualities;
+    const index = values.indexOf(value);
+    if (index >= 0) values.splice(index, 1);
+    else values.push(value);
+    updateFacetControls();
+    state.shouldFocusWindow = true;
+    render();
+  }
+
+  function closeFacetPanels(except = null) {
+    [[dom.type, dom.typeOptions], [dom.quality, dom.qualityOptions]].forEach(([trigger, panel]) => {
+      if (panel !== except) {
+        panel.hidden = true;
+        trigger.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+
+  function readFilterPacks() {
+    try {
+      const value = JSON.parse(localStorage.getItem(FILTER_PACK_STORAGE_KEY) || "[]");
+      if (!Array.isArray(value)) return [];
+      return value.slice(0, 20).map((pack) => ({
+        id: String(pack.id || ""),
+        name: String(pack.name || "").trim().slice(0, 24),
+        types: Array.isArray(pack.types) ? pack.types.filter((item) => TYPE_OPTIONS.includes(item)) : [],
+        qualities: Array.isArray(pack.qualities) ? pack.qualities.filter((item) => QUALITY_OPTIONS.includes(item)) : [],
+        hotspots: Array.isArray(pack.hotspots) ? pack.hotspots.filter((item) => item === "none" || hotspotCatalog.some((group) => group.name === item)) : [],
+      })).filter((pack) => pack.id && pack.name);
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  let filterPacks = readFilterPacks();
+
+  function persistFilterPacks() {
+    try { localStorage.setItem(FILTER_PACK_STORAGE_KEY, JSON.stringify(filterPacks)); } catch (_error) { /* 本地存储不可用时保留当前会话 */ }
+  }
+
+  function filterPackDescription(pack) {
+    const parts = [];
+    if (pack.types.length) parts.push(`${pack.types.length} 类型`);
+    if (pack.qualities.length) parts.push(`${pack.qualities.length} 品质`);
+    if (pack.hotspots.length) parts.push(`${pack.hotspots.length} 热点`);
+    return parts.length ? parts.join(" · ") : "全部选项";
+  }
+
+  function renderFilterPacks() {
+    dom.filterPackCount.textContent = `${filterPacks.length} 组`;
+    dom.filterPackSummary.textContent = filterPacks.length ? `已存 ${filterPacks.length} 组` : "快速选择";
+    dom.filterPackTrigger.classList.toggle("has-packs", filterPacks.length > 0);
+    dom.filterPackList.innerHTML = filterPacks.length
+      ? filterPacks.map((pack) => `<div class="filter-pack-item"><button type="button" class="filter-pack-apply" data-pack-id="${escapeHtml(pack.id)}"><strong>${escapeHtml(pack.name)}</strong><small>${escapeHtml(filterPackDescription(pack))}</small></button><button type="button" class="filter-pack-delete" data-delete-pack-id="${escapeHtml(pack.id)}" aria-label="删除 ${escapeHtml(pack.name)}">×</button></div>`).join("")
+      : '<div class="filter-pack-empty">还没有组合。先多选筛选项，再保存当前组合。</div>';
+  }
+
+  function showFilterPackMessage(message, isError = false) {
+    dom.filterPackMessage.textContent = message;
+    dom.filterPackMessage.classList.toggle("is-error", isError);
+  }
+
+  function applyFilterPack(pack) {
+    state.types = [...pack.types];
+    state.qualities = [...pack.qualities];
+    state.hotspots = [...pack.hotspots];
+    dom.hotspot.value = "";
+    updateFacetControls();
+    updateHotspotControl();
+    const groups = selectedHotspotGroups();
+    if (groups.length) focusHotspotWindow(groups);
+    closeHotspotOptions();
+    dom.filterPackPanel.hidden = true;
+    dom.filterPackTrigger.setAttribute("aria-expanded", "false");
+    state.shouldFocusWindow = true;
+    render();
   }
 
   function storedDisplayScale() {
@@ -362,10 +483,8 @@
     return activities.filter((activity) => {
       const startsInWindow = parseDate(activity.start) >= state.start && parseDate(activity.start) <= state.end;
       if (state.mode === "launched" ? !startsInWindow : !overlaps(activity, state.start, state.end)) return false;
-      if (state.type === "unknown" ? Boolean(activity.type) : state.type !== "all" && activity.type !== state.type) return false;
-      if (state.quality === "skin" && !activity.highestSkinQuality) return false;
-      if (state.quality === "none" && activity.highestSkinQuality) return false;
-      if (!["all", "skin", "none"].includes(state.quality) && !activity.skinQualities.includes(state.quality)) return false;
+      if (!matchesTypeFilter(activity)) return false;
+      if (!matchesQualityFilter(activity)) return false;
       if (!matchesHotspotFilter(activity.hotspot)) return false;
       if (query) {
         const resourceText = activity.resources.map((resource) => `${resource.name} ${resource.type} ${resource.threshold}`).join(" ");
@@ -378,16 +497,15 @@
 
   function filteredHotspots() {
     const query = state.query.trim().toLocaleLowerCase("zh-CN");
-    if (state.hotspot === "none") return [];
+    if (state.hotspots.length === 1 && state.hotspots[0] === "none") return [];
     return hotspotGroups.filter((group) => {
       const startsInWindow = parseDate(group.start) >= state.start && parseDate(group.start) <= state.end;
       if (state.mode === "launched" ? !startsInWindow : !overlaps(group, state.start, state.end)) return false;
-      if (state.hotspot !== "all" && !group.name.toLocaleLowerCase("zh-CN").includes(state.hotspot.toLocaleLowerCase("zh-CN"))) return false;
+      const selectedNamedHotspots = state.hotspots.filter((item) => item !== "none");
+      if (selectedNamedHotspots.length && !selectedNamedHotspots.includes(group.name)) return false;
       const facetActivities = group.activities.filter((activity) => {
-        if (state.type === "unknown" ? Boolean(activity.type) : state.type !== "all" && activity.type !== state.type) return false;
-        if (state.quality === "skin" && !activity.highestSkinQuality) return false;
-        if (state.quality === "none" && activity.highestSkinQuality) return false;
-        if (!["all", "skin", "none"].includes(state.quality) && !activity.skinQualities.includes(state.quality)) return false;
+        if (!matchesTypeFilter(activity)) return false;
+        if (!matchesQualityFilter(activity)) return false;
         return true;
       });
       if (!facetActivities.length) return false;
@@ -905,10 +1023,15 @@
   }
 
   function resetFilters() {
-    state.query = ""; state.type = "all"; state.quality = "all"; state.hotspot = "all";
+    state.query = ""; state.types = []; state.qualities = []; state.hotspots = [];
     state.mode = "active"; state.grain = "week"; state.perspective = "activity";
-    dom.search.value = ""; dom.type.value = "all"; dom.quality.value = "all"; dom.hotspot.value = ""; dom.hotspotClear.hidden = true;
+    dom.search.value = ""; dom.hotspot.value = "";
+    updateFacetControls();
+    updateHotspotControl();
+    closeFacetPanels();
     closeHotspotOptions();
+    dom.filterPackPanel.hidden = true;
+    dom.filterPackTrigger.setAttribute("aria-expanded", "false");
     document.querySelectorAll("[data-perspective]").forEach((button) => button.classList.toggle("is-active", button.dataset.perspective === "activity"));
     document.querySelectorAll("[data-mode]").forEach((button) => button.classList.toggle("is-active", button.dataset.mode === "active"));
     document.querySelectorAll("[data-grain]").forEach((button) => button.classList.toggle("is-active", button.dataset.grain === "week"));
@@ -960,36 +1083,65 @@
 
   function bindEvents() {
     let searchTimer;
-    let hotspotTimer;
     dom.search.addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { state.query = dom.search.value; state.shouldFocusWindow = true; render(); }, 120); });
     dom.start.addEventListener("change", () => { state.start = parseDate(dom.start.value); state.windowDays = daysBetween(state.start, state.end) + 1; state.shouldFocusWindow = true; document.querySelectorAll("[data-window]").forEach((b) => b.classList.remove("is-active")); render(); });
     dom.end.addEventListener("change", () => { state.end = parseDate(dom.end.value); state.windowDays = daysBetween(state.start, state.end) + 1; state.shouldFocusWindow = true; document.querySelectorAll("[data-window]").forEach((b) => b.classList.remove("is-active")); render(); });
-    dom.type.addEventListener("change", () => { state.type = dom.type.value; state.shouldFocusWindow = true; render(); });
-    dom.quality.addEventListener("change", () => { state.quality = dom.quality.value; state.shouldFocusWindow = true; render(); });
-    dom.hotspot.addEventListener("input", () => {
-      clearTimeout(hotspotTimer);
-      dom.hotspotClear.hidden = !dom.hotspot.value;
-      renderHotspotOptions(dom.hotspot.value, true);
-      hotspotTimer = setTimeout(() => {
-        const selectedGroup = selectedHotspotGroup(dom.hotspot.value);
-        state.hotspot = normalizedHotspotFilter(dom.hotspot.value);
-        if (selectedGroup) focusHotspotWindow(selectedGroup);
+    [[dom.type, dom.typeOptions], [dom.quality, dom.qualityOptions]].forEach(([trigger, panel]) => {
+      trigger.addEventListener("click", () => {
+        const open = panel.hidden;
+        closeFacetPanels(open ? panel : null);
+        closeHotspotOptions();
+        dom.filterPackPanel.hidden = true;
+        dom.filterPackTrigger.setAttribute("aria-expanded", "false");
+        panel.hidden = !open;
+        trigger.setAttribute("aria-expanded", String(open));
+      });
+      trigger.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          panel.hidden = false;
+          trigger.setAttribute("aria-expanded", "true");
+          panel.querySelector(".facet-option")?.focus();
+        } else if (event.key === "Escape") {
+          panel.hidden = true;
+          trigger.setAttribute("aria-expanded", "false");
+        }
+      });
+    });
+    document.addEventListener("click", (event) => {
+      const option = event.target.closest(".facet-option");
+      if (option) toggleFacetValue(option.dataset.facet, option.dataset.value);
+      const clear = event.target.closest("[data-clear-facet]");
+      if (clear) {
+        if (clear.dataset.clearFacet === "type") state.types = [];
+        else state.qualities = [];
+        updateFacetControls();
         state.shouldFocusWindow = true;
         render();
-      }, 120);
+      }
     });
-    const selectHotspotOption = (value) => {
-      clearTimeout(hotspotTimer);
-      dom.hotspot.value = value;
-      dom.hotspotClear.hidden = !value;
-      const selectedGroup = selectedHotspotGroup(value);
-      state.hotspot = normalizedHotspotFilter(value);
-      if (selectedGroup) focusHotspotWindow(selectedGroup);
+    dom.hotspot.addEventListener("input", () => {
+      updateHotspotControl();
+      renderHotspotOptions(dom.hotspot.value, true);
+    });
+    const toggleHotspotOption = (value) => {
+      const index = state.hotspots.indexOf(value);
+      if (index >= 0) state.hotspots.splice(index, 1);
+      else state.hotspots.push(value);
+      dom.hotspot.value = "";
+      updateHotspotControl();
+      const groups = selectedHotspotGroups();
+      if (groups.length) focusHotspotWindow(groups);
       state.shouldFocusWindow = true;
-      closeHotspotOptions();
+      renderHotspotOptions("", true);
       render();
     };
-    dom.hotspot.addEventListener("focus", () => renderHotspotOptions(dom.hotspot.value, true));
+    dom.hotspot.addEventListener("focus", () => {
+      closeFacetPanels();
+      dom.filterPackPanel.hidden = true;
+      dom.filterPackTrigger.setAttribute("aria-expanded", "false");
+      renderHotspotOptions(dom.hotspot.value, true);
+    });
     dom.hotspot.addEventListener("keydown", (event) => {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
@@ -1001,7 +1153,7 @@
         activateHotspotOption(nextIndex);
       } else if (event.key === "Enter" && activeHotspotOptionIndex >= 0) {
         event.preventDefault();
-        selectHotspotOption(visibleHotspotOptions[activeHotspotOptionIndex].value);
+        toggleHotspotOption(visibleHotspotOptions[activeHotspotOptionIndex].value);
       } else if (event.key === "Escape") {
         closeHotspotOptions();
       }
@@ -1009,20 +1161,67 @@
     dom.hotspotOptions.addEventListener("pointerdown", (event) => event.preventDefault());
     dom.hotspotOptions.addEventListener("click", (event) => {
       const option = event.target.closest(".hotspot-option");
-      if (option) selectHotspotOption(option.dataset.optionValue);
+      if (option) toggleHotspotOption(option.dataset.optionValue);
     });
     dom.hotspotClear.addEventListener("click", () => {
-      clearTimeout(hotspotTimer);
       dom.hotspot.value = "";
-      dom.hotspotClear.hidden = true;
-      state.hotspot = "all";
+      state.hotspots = [];
+      updateHotspotControl();
       state.shouldFocusWindow = true;
       render();
       dom.hotspot.focus();
       renderHotspotOptions("", true);
     });
+    dom.filterPackTrigger.addEventListener("click", () => {
+      const open = dom.filterPackPanel.hidden;
+      closeFacetPanels();
+      closeHotspotOptions();
+      dom.filterPackPanel.hidden = !open;
+      dom.filterPackTrigger.setAttribute("aria-expanded", String(open));
+      showFilterPackMessage("");
+    });
+    dom.filterPackForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const name = dom.filterPackName.value.trim();
+      const selectionCount = state.types.length + state.qualities.length + state.hotspots.length;
+      if (!name) return showFilterPackMessage("请输入组合名称", true);
+      if (!selectionCount) return showFilterPackMessage("请先选择至少一个筛选项", true);
+      const existing = filterPacks.find((pack) => pack.name === name);
+      const pack = {
+        id: existing?.id || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        name,
+        types: [...state.types],
+        qualities: [...state.qualities],
+        hotspots: [...state.hotspots],
+      };
+      filterPacks = existing ? filterPacks.map((item) => item.id === existing.id ? pack : item) : [pack, ...filterPacks].slice(0, 20);
+      persistFilterPacks();
+      renderFilterPacks();
+      dom.filterPackName.value = "";
+      showFilterPackMessage(existing ? "已更新同名组合" : "已保存到本地浏览器");
+    });
+    dom.filterPackList.addEventListener("click", (event) => {
+      const apply = event.target.closest("[data-pack-id]");
+      if (apply) {
+        const pack = filterPacks.find((item) => item.id === apply.dataset.packId);
+        if (pack) applyFilterPack(pack);
+        return;
+      }
+      const remove = event.target.closest("[data-delete-pack-id]");
+      if (remove) {
+        filterPacks = filterPacks.filter((item) => item.id !== remove.dataset.deletePackId);
+        persistFilterPacks();
+        renderFilterPacks();
+        showFilterPackMessage("组合已删除");
+      }
+    });
     document.addEventListener("pointerdown", (event) => {
       if (!event.target.closest(".hotspot-search-shell")) closeHotspotOptions();
+      if (!event.target.closest(".facet-select")) closeFacetPanels();
+      if (!event.target.closest(".filter-pack-shell")) {
+        dom.filterPackPanel.hidden = true;
+        dom.filterPackTrigger.setAttribute("aria-expanded", "false");
+      }
     });
     dom.scaleDown.addEventListener("click", () => stepDisplayScale(-1));
     dom.scaleUp.addEventListener("click", () => stepDisplayScale(1));
@@ -1075,6 +1274,9 @@
   dom.generatedAt.textContent = meta.generatedAt;
   dom.dataRange.textContent = `${formatDate(meta.minDate)} — ${formatDate(meta.maxDate)}`;
   populateHotspotFilter();
+  updateFacetControls();
+  updateHotspotControl();
+  renderFilterPacks();
   applyDisplayScale(storedDisplayScale(), false);
   bindEvents();
   setWindow(30);
