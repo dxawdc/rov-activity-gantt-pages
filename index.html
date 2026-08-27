@@ -98,9 +98,9 @@
           <label for="hotspotFilter">关联热点</label>
           <div class="hotspot-search-shell">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
-            <input id="hotspotFilter" type="search" list="hotspotOptions" placeholder="搜索或选择热点" autocomplete="off" />
+            <input id="hotspotFilter" type="search" placeholder="搜索或选择热点" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="hotspotOptions" aria-expanded="false" />
             <button id="hotspotClear" type="button" aria-label="清除热点筛选" hidden>×</button>
-            <datalist id="hotspotOptions"></datalist>
+            <div id="hotspotOptions" class="hotspot-options" role="listbox" hidden></div>
           </div>
         </div>
 

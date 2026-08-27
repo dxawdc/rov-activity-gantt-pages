@@ -217,11 +217,45 @@ h1 {
   background: transparent;
 }
 
-.hotspot-search-shell { display: flex; align-items: center; padding: 0 9px; }
+.hotspot-search-shell { position: relative; display: flex; align-items: center; padding: 0 9px; }
 .hotspot-search-shell svg { flex: 0 0 auto; width: 15px; fill: none; stroke: #78868e; stroke-width: 1.7; }
 .hotspot-search-shell input { width: 100%; min-width: 0; padding: 10px 8px; border: 0; outline: 0; color: var(--paper); background: transparent; }
 .hotspot-search-shell button { width: 24px; height: 24px; padding: 0; border: 0; color: #8e9aa0; background: transparent; cursor: pointer; font-size: 17px; }
 .hotspot-search-shell button:hover { color: var(--paper); }
+.hotspot-options {
+  position: absolute;
+  z-index: 55;
+  top: calc(100% + 5px);
+  left: -1px;
+  width: max(100%, min(410px, calc(100vw - 28px)));
+  max-height: 322px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid rgba(199,162,106,0.5);
+  background: #111a21;
+  box-shadow: 0 18px 42px rgba(0,0,0,0.48);
+  scrollbar-width: thin;
+  scrollbar-color: #66747b #172129;
+}
+.hotspot-options[hidden] { display: none; }
+.hotspot-option {
+  display: block;
+  width: 100% !important;
+  height: 32px !important;
+  padding: 0 10px !important;
+  overflow: hidden;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(159,177,185,0.09) !important;
+  color: #c9d0d2 !important;
+  background: transparent !important;
+  font-size: 10px !important;
+  line-height: 32px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hotspot-option:last-child { border-bottom: 0 !important; }
+.hotspot-option:hover, .hotspot-option.is-active { color: #171d21 !important; background: var(--brass) !important; }
 
 input::placeholder { color: #59656c; }
 

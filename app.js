@@ -207,10 +207,54 @@
     return hotspotCatalog.find((group) => normalized === group.name || normalized === hotspotOptionText(group)) || null;
   }
 
+  let visibleHotspotOptions = [];
+  let activeHotspotOptionIndex = -1;
+
+  function hotspotChoices(query = "") {
+    const normalized = String(query || "").trim().toLocaleLowerCase("zh-CN");
+    const choices = hotspotCatalog
+      .map((group) => ({ value: hotspotOptionText(group), group }))
+      .filter((choice) => !normalized || choice.value.toLocaleLowerCase("zh-CN").includes(normalized));
+    if (!normalized || "无关联热点".includes(normalized)) choices.unshift({ value: "无关联热点", group: null });
+    return choices;
+  }
+
+  function renderHotspotOptions(query = "", open = true) {
+    visibleHotspotOptions = hotspotChoices(query);
+    activeHotspotOptionIndex = -1;
+    dom.hotspot.removeAttribute("aria-activedescendant");
+    dom.hotspotOptions.innerHTML = visibleHotspotOptions
+      .map((choice, index) => `<button type="button" class="hotspot-option" id="hotspot-option-${index}" role="option" aria-selected="false" data-option-index="${index}" data-option-value="${escapeHtml(choice.value)}" title="${escapeHtml(choice.value)}">${escapeHtml(choice.value)}</button>`)
+      .join("");
+    dom.hotspotOptions.hidden = !open || !visibleHotspotOptions.length;
+    dom.hotspot.setAttribute("aria-expanded", String(open && visibleHotspotOptions.length > 0));
+  }
+
+  function closeHotspotOptions() {
+    dom.hotspotOptions.hidden = true;
+    dom.hotspot.setAttribute("aria-expanded", "false");
+    dom.hotspot.removeAttribute("aria-activedescendant");
+    activeHotspotOptionIndex = -1;
+  }
+
+  function activateHotspotOption(index) {
+    if (!visibleHotspotOptions.length) return;
+    activeHotspotOptionIndex = (index + visibleHotspotOptions.length) % visibleHotspotOptions.length;
+    const options = [...dom.hotspotOptions.querySelectorAll(".hotspot-option")];
+    options.forEach((option, optionIndex) => {
+      const selected = optionIndex === activeHotspotOptionIndex;
+      option.classList.toggle("is-active", selected);
+      option.setAttribute("aria-selected", String(selected));
+    });
+    const active = options[activeHotspotOptionIndex];
+    if (active) {
+      dom.hotspot.setAttribute("aria-activedescendant", active.id);
+      active.scrollIntoView({ block: "nearest" });
+    }
+  }
+
   function populateHotspotFilter() {
-    dom.hotspotOptions.innerHTML = `<option value="无关联热点"></option>${hotspotCatalog
-      .map((group) => `<option value="${escapeHtml(hotspotOptionText(group))}"></option>`)
-      .join("")}`;
+    renderHotspotOptions("", false);
   }
 
   function normalizedHotspotFilter(value) {
@@ -864,6 +908,7 @@
     state.query = ""; state.type = "all"; state.quality = "all"; state.hotspot = "all";
     state.mode = "active"; state.grain = "week"; state.perspective = "activity";
     dom.search.value = ""; dom.type.value = "all"; dom.quality.value = "all"; dom.hotspot.value = ""; dom.hotspotClear.hidden = true;
+    closeHotspotOptions();
     document.querySelectorAll("[data-perspective]").forEach((button) => button.classList.toggle("is-active", button.dataset.perspective === "activity"));
     document.querySelectorAll("[data-mode]").forEach((button) => button.classList.toggle("is-active", button.dataset.mode === "active"));
     document.querySelectorAll("[data-grain]").forEach((button) => button.classList.toggle("is-active", button.dataset.grain === "week"));
@@ -924,6 +969,7 @@
     dom.hotspot.addEventListener("input", () => {
       clearTimeout(hotspotTimer);
       dom.hotspotClear.hidden = !dom.hotspot.value;
+      renderHotspotOptions(dom.hotspot.value, true);
       hotspotTimer = setTimeout(() => {
         const selectedGroup = selectedHotspotGroup(dom.hotspot.value);
         state.hotspot = normalizedHotspotFilter(dom.hotspot.value);
@@ -931,6 +977,39 @@
         state.shouldFocusWindow = true;
         render();
       }, 120);
+    });
+    const selectHotspotOption = (value) => {
+      clearTimeout(hotspotTimer);
+      dom.hotspot.value = value;
+      dom.hotspotClear.hidden = !value;
+      const selectedGroup = selectedHotspotGroup(value);
+      state.hotspot = normalizedHotspotFilter(value);
+      if (selectedGroup) focusHotspotWindow(selectedGroup);
+      state.shouldFocusWindow = true;
+      closeHotspotOptions();
+      render();
+    };
+    dom.hotspot.addEventListener("focus", () => renderHotspotOptions(dom.hotspot.value, true));
+    dom.hotspot.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        if (dom.hotspotOptions.hidden) renderHotspotOptions(dom.hotspot.value, true);
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        const nextIndex = activeHotspotOptionIndex < 0
+          ? (direction > 0 ? 0 : visibleHotspotOptions.length - 1)
+          : activeHotspotOptionIndex + direction;
+        activateHotspotOption(nextIndex);
+      } else if (event.key === "Enter" && activeHotspotOptionIndex >= 0) {
+        event.preventDefault();
+        selectHotspotOption(visibleHotspotOptions[activeHotspotOptionIndex].value);
+      } else if (event.key === "Escape") {
+        closeHotspotOptions();
+      }
+    });
+    dom.hotspotOptions.addEventListener("pointerdown", (event) => event.preventDefault());
+    dom.hotspotOptions.addEventListener("click", (event) => {
+      const option = event.target.closest(".hotspot-option");
+      if (option) selectHotspotOption(option.dataset.optionValue);
     });
     dom.hotspotClear.addEventListener("click", () => {
       clearTimeout(hotspotTimer);
@@ -940,6 +1019,10 @@
       state.shouldFocusWindow = true;
       render();
       dom.hotspot.focus();
+      renderHotspotOptions("", true);
+    });
+    document.addEventListener("pointerdown", (event) => {
+      if (!event.target.closest(".hotspot-search-shell")) closeHotspotOptions();
     });
     dom.scaleDown.addEventListener("click", () => stepDisplayScale(-1));
     dom.scaleUp.addEventListener("click", () => stepDisplayScale(1));
