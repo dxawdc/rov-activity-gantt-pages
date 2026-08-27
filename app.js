@@ -7,7 +7,7 @@
     return;
   }
 
-  const activities = payload.activities;
+  const activities = payload.activities.map(normalizeActivityText);
   const meta = payload.meta;
   const recordUrlBase = meta.recordUrlBase || "https://moonton.feishu.cn/base/K9ffbRhAAam8o7sS92Pchpo5nTg?table=tblcTEBdqkE7Jwpa";
   const QUALITY_ORDER = { "SSS+": 0, SSS: 1, "SS+": 2, SS: 3, "S+": 4, S: 5, A: 6, B: 7, "/": 8 };
@@ -81,6 +81,58 @@
   function formatShortDate(date) { return `${date.getMonth() + 1}/${date.getDate()}`; }
   function escapeHtml(value = "") {
     return String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
+  }
+  function parseLinkedText(value = "") {
+    const source = String(value || "");
+    const pattern = /\[([^\]\r\n]+)\]\((https?:\/\/[^)\s]+)\)/gi;
+    const links = [];
+    let text = "";
+    let cursor = 0;
+    for (const match of source.matchAll(pattern)) {
+      text += source.slice(cursor, match.index);
+      const start = text.length;
+      text += match[1];
+      links.push({ start, end: text.length, url: match[2] });
+      cursor = match.index + match[0].length;
+    }
+    text += source.slice(cursor);
+    return { text, links };
+  }
+  function safeExternalUrl(value) {
+    try {
+      const url = new URL(value);
+      return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+    } catch {
+      return null;
+    }
+  }
+  function renderLinkedText(text, links = []) {
+    if (!links.length) return escapeHtml(text);
+    let html = "";
+    let cursor = 0;
+    links.forEach((link) => {
+      const url = safeExternalUrl(link.url);
+      if (!url || link.start < cursor || link.end > text.length) return;
+      html += escapeHtml(text.slice(cursor, link.start));
+      html += `<a class="inline-source-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(text.slice(link.start, link.end))}</a>`;
+      cursor = link.end;
+    });
+    return html + escapeHtml(text.slice(cursor));
+  }
+  function normalizeActivityText(activity) {
+    const name = parseLinkedText(activity.name);
+    const hotspot = parseLinkedText(activity.hotspot);
+    return {
+      ...activity,
+      name: name.text,
+      nameLinks: name.links,
+      hotspot: hotspot.text || null,
+      hotspotLinks: hotspot.links,
+      resources: activity.resources.map((resource) => {
+        const resourceName = parseLinkedText(resource.name);
+        return { ...resource, name: resourceName.text, nameLinks: resourceName.links };
+      }),
+    };
   }
   function qualityClass(value) { return { B: "q-b", A: "q-a", S: "q-s", "S+": "q-splus", SS: "q-ss", "SS+": "q-ssplus", SSS: "q-sss", "SSS+": "q-sssplus" }[value] || "q-a"; }
   function qualityBadge(value, extra = "") {
@@ -554,7 +606,7 @@
           <article class="resource-card" style="--resource-accent:${resourceAccent(resource)}">
             <span class="resource-icon">${escapeHtml(resource.type.slice(0, 1))}</span>
             <div class="resource-main">
-              <p class="resource-title">${escapeHtml(resource.name)}${resource.quantity != null ? ` × ${resource.quantity}` : ""}</p>
+              <p class="resource-title">${renderLinkedText(resource.name, resource.nameLinks)}${resource.quantity != null ? ` × ${resource.quantity}` : ""}</p>
               <div class="resource-meta">${escapeHtml(resource.type)}${resource.subtype && resource.subtype !== "/" ? ` · ${escapeHtml(resource.subtype)}` : ""}${resource.newness !== "/" ? ` · ${escapeHtml(resource.newness)}` : ""}</div>
             </div>
             <div class="resource-quality">${qualityBadge(resource.quality)}</div>
@@ -611,7 +663,7 @@
     const access = activity.type === "活跃" ? { key: "free", label: "免费" } : activity.type === "付费" ? { key: "paid", label: "付费" } : { key: "unknown", label: "待判断" };
     return `
       <article class="hotspot-resource-card access-${access.key}" style="--resource-accent:${resourceAccent(resource)}">
-        <div class="hotspot-resource-head"><strong>${escapeHtml(resource.name)}</strong><span class="hotspot-resource-flags">${qualityBadge(resource.quality)}<i class="resource-access-tag">${access.label}</i></span></div>
+        <div class="hotspot-resource-head"><strong>${renderLinkedText(resource.name, resource.nameLinks)}</strong><span class="hotspot-resource-flags">${qualityBadge(resource.quality)}<i class="resource-access-tag">${access.label}</i></span></div>
         <span class="hotspot-resource-meta">${escapeHtml(resource.type)}</span>
         <small title="${escapeHtml(activity.name)}">来自 ${escapeHtml(activity.name)}</small>
         ${expectation ? `<p class="hotspot-resource-expectation">${escapeHtml(expectation)}</p>` : ""}
@@ -694,13 +746,13 @@
     state.selected = activity;
     dom.drawer.classList.remove("is-hotspot");
     const allQualities = activity.skinQualities.map((quality) => qualityBadge(quality)).join("");
-    const hotspot = activity.hotspot ? `<span class="hotspot-chip">◆ ${escapeHtml(activity.hotspot)}</span>` : "";
+    const hotspot = activity.hotspot ? `<span class="hotspot-chip">◆ ${renderLinkedText(activity.hotspot, activity.hotspotLinks)}</span>` : "";
     const tags = [...activity.subtypes, activity.target, activity.type].filter(Boolean);
     dom.drawerContent.innerHTML = `
       ${parentHotspot ? `<button type="button" class="drawer-back" id="backToHotspot">← 返回 ${escapeHtml(parentHotspot.name)}</button>` : ""}
       <header class="drawer-hero">
         <div class="drawer-kicker">${allQualities}<span>${activity.highestSkinQuality ? "含皮肤资源" : "活动详情"}</span>${hotspot}</div>
-        <h2>${escapeHtml(activity.name)}</h2>
+        <h2>${renderLinkedText(activity.name, activity.nameLinks)}</h2>
         <div class="drawer-period">${formatDate(activity.start)} — ${activity.end ? formatDate(activity.end) : "结束时间待补充"}</div>
       </header>
       <section class="drawer-section">

@@ -530,6 +530,9 @@ input:focus, select:focus, .input-shell:focus-within, .hotspot-search-shell:focu
 .drawer-hero::after { content: ""; position: absolute; width: 220px; height: 220px; right: -110px; top: -100px; border: 1px solid rgba(199,162,106,0.35); transform: rotate(45deg); }
 .drawer-kicker { display: flex; align-items: center; gap: 8px; min-height: 24px; color: #91a0a6; font-size: 10px; letter-spacing: 0.1em; }
 .drawer-hero h2 { position: relative; z-index: 1; max-width: 520px; margin: 20px 0 16px; font-family: "STZhongsong", "Source Han Serif SC", serif; font-size: clamp(26px, 4vw, 38px); font-weight: 600; line-height: 1.25; letter-spacing: 0.03em; }
+.inline-source-link { color: inherit; text-decoration-line: underline; text-decoration-thickness: 1px; text-underline-offset: 0.16em; text-decoration-color: color-mix(in srgb, currentColor 54%, transparent); }
+.inline-source-link:hover { text-decoration-color: currentColor; }
+.drawer-hero .inline-source-link { color: #f2d7a8; }
 .drawer-period { color: #cbb58f; font-family: "Bahnschrift", sans-serif; font-size: 12px; letter-spacing: 0.06em; }
 .hotspot-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid rgba(199,162,106,0.46); color: #d7c5a4; }
 .drawer-back { position: sticky; top: 14px; z-index: 4; margin: 14px 0 -56px 14px; padding: 9px 12px; border: 1px solid rgba(32,39,43,0.2); color: #4e5a5f; background: rgba(236,231,220,0.94); cursor: pointer; }
