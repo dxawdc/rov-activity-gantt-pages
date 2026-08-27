@@ -198,9 +198,18 @@
     }))
     .sort((left, right) => left.name.localeCompare(right.name, "zh-CN", { numeric: true }));
 
+  function hotspotOptionText(group) {
+    return `${group.name}——${group.activities.length}个活动`;
+  }
+
+  function selectedHotspotGroup(value) {
+    const normalized = String(value || "").trim();
+    return hotspotCatalog.find((group) => normalized === group.name || normalized === hotspotOptionText(group)) || null;
+  }
+
   function populateHotspotFilter() {
     dom.hotspotOptions.innerHTML = `<option value="无关联热点"></option>${hotspotCatalog
-      .map((group) => `<option value="${escapeHtml(group.name)}" label="${group.activities.length} 个活动"></option>`)
+      .map((group) => `<option value="${escapeHtml(hotspotOptionText(group))}"></option>`)
       .join("")}`;
   }
 
@@ -208,7 +217,21 @@
     const normalized = String(value || "").trim();
     if (!normalized || normalized === "全部热点") return "all";
     if (normalized === "无关联热点") return "none";
-    return normalized;
+    return selectedHotspotGroup(normalized)?.name || normalized;
+  }
+
+  function focusHotspotWindow(group) {
+    const datedActivities = group.activities.filter((activity) => activity.start);
+    if (!datedActivities.length) return false;
+    const earliest = new Date(Math.min(...datedActivities.map((activity) => parseDate(activity.start).getTime())));
+    const latest = new Date(Math.max(...datedActivities.map((activity) => activityEnd(activity).getTime())));
+    state.start = addDays(earliest, -7);
+    state.end = addDays(latest, 7);
+    state.windowDays = daysBetween(state.start, state.end) + 1;
+    dom.start.value = isoDate(state.start);
+    dom.end.value = isoDate(state.end);
+    document.querySelectorAll("[data-window]").forEach((button) => button.classList.remove("is-active"));
+    return true;
   }
 
   function matchesHotspotFilter(value, filter = state.hotspot) {
@@ -901,7 +924,13 @@
     dom.hotspot.addEventListener("input", () => {
       clearTimeout(hotspotTimer);
       dom.hotspotClear.hidden = !dom.hotspot.value;
-      hotspotTimer = setTimeout(() => { state.hotspot = normalizedHotspotFilter(dom.hotspot.value); state.shouldFocusWindow = true; render(); }, 120);
+      hotspotTimer = setTimeout(() => {
+        const selectedGroup = selectedHotspotGroup(dom.hotspot.value);
+        state.hotspot = normalizedHotspotFilter(dom.hotspot.value);
+        if (selectedGroup) focusHotspotWindow(selectedGroup);
+        state.shouldFocusWindow = true;
+        render();
+      }, 120);
     });
     dom.hotspotClear.addEventListener("click", () => {
       clearTimeout(hotspotTimer);
